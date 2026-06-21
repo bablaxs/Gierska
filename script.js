@@ -397,7 +397,23 @@ async function loadRoomOnly() {
   game.currentAnswerIndex = room.current_answer_index || 0;
 }
 
+async function loadPlayers() {
+  if (!game.roomCode) return;
 
+  const { data, error } = await db
+    .from("players")
+    .select("*")
+    .eq("room_code", game.roomCode)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  game.players = data || [];
+  renderPlayers();
+}
 async function loadAnswers() {
   if (!game.roomCode) return;
 
