@@ -658,7 +658,13 @@ shuffledAnswerIds = shuffleArray(game.answers.map(a => a.id));
 
   if (error) console.error(error);
 }
+function getCurrentAnswer() {
+  const orderedAnswers = shuffledAnswerIds.length
+    ? shuffledAnswerIds.map(id => game.answers.find(a => a.id === id)).filter(Boolean)
+    : game.answers;
 
+  return orderedAnswers[game.currentAnswerIndex];
+}
 function renderGuessScreen() {
   const orderedAnswers = shuffledAnswerIds.length
   ? shuffledAnswerIds.map(id => game.answers.find(a => a.id === id)).filter(Boolean)
@@ -707,7 +713,7 @@ if (alreadyGuessed) {
 }
 
 async function submitGuess(guessedPlayerId) {
-  const answer = game.answers[game.currentAnswerIndex];
+ const answer = getCurrentAnswer();
   if (!answer) return;
 
   await loadGuesses();
@@ -725,8 +731,8 @@ async function submitGuess(guessedPlayerId) {
     guessed_player_id: guessedPlayerId
   });
 
-  if (error) return alert("Błąd głosowania: " + error.message);
-
+  
+playKtoNapisal();
   const voteStatus = document.getElementById("voteStatus");
   if (voteStatus) {
     voteStatus.textContent = "Zagłosowano ✅ Czekamy na resztę...";
@@ -744,7 +750,7 @@ async function hostCheckGuessing() {
   if (!isHost || isProcessing) return;
   if (game.roomState !== "guessing") return;
 
-  const answer = game.answers[game.currentAnswerIndex];
+  const answer = getCurrentAnswer();
   if (!answer) return;
 
   const guessesForAnswer = game.guesses.filter(g => g.answer_id === answer.id);
@@ -796,7 +802,7 @@ async function calculatePoints(answer, guessesForAnswer) {
 }
 
 function renderResultsScreen() {
-  const answer = game.answers[game.currentAnswerIndex];
+  const answer = getCurrentAnswer();
   if (!answer) return;
 
   const author = game.players.find(p => p.id === answer.player_id);
