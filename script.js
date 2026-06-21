@@ -159,7 +159,8 @@ let game = {
   round: 1,
   maxRounds: 5,
   currentQuestion: "",
-  currentAnswerIndex: 0
+  currentAnswerIndex: 0,
+  answerOrder: []
 };
 
 function showScreen(name) {
@@ -200,6 +201,14 @@ function getRandomQuestion() {
 }
 function shuffleArray(array) {
   return [...array].sort(() => Math.random() - 0.5);
+}
+function getCurrentAnswer() {
+  const answerId =
+    game.answerOrder[game.currentAnswerIndex];
+
+  return game.answers.find(
+    a => a.id === answerId
+  );
 }
 function getVisibleStateKey() {
   return [
@@ -417,6 +426,9 @@ async function loadRoomOnly() {
   game.round = room.round || 1;
   game.currentQuestion = room.current_question || "";
   game.currentAnswerIndex = room.current_answer_index || 0;
+  game.answerOrder = room.answer_order
+  ? JSON.parse(room.answer_order)
+  : [];
 }
 
 async function loadPlayers() {
@@ -447,7 +459,7 @@ async function loadAnswers() {
 
   if (error) return console.error(error);
 
-  game.answers = data || [];
+  game.answers = (data || []).sort((a, b) => a.id.localeCompare(b.id));
 }
 
 async function loadGuesses() {
@@ -578,16 +590,18 @@ function renderAnswerScreen() {
   document.getElementById("answeredCount").textContent =
     `${game.answers.length}/${game.players.length} odpowiedziało`;
 
-  if (myAnswer) {
+if (myAnswer) {
   input.value = myAnswer.answer;
   input.disabled = false;
   btn.disabled = false;
   btn.textContent = "ZAPISZ ZMIANY ✏️";
 } else {
-    input.disabled = false;
-    btn.disabled = false;
-    btn.textContent = "WYŚLIJ ✈";
-  }
+  input.value = "";
+  document.getElementById("charCount").textContent = "0/120";
+  input.disabled = false;
+  btn.disabled = false;
+  btn.textContent = "WYŚLIJ ✈";
+}
 
   showScreen("answer");
 }
@@ -645,13 +659,16 @@ async function hostCheckAnswering() {
   if (game.answers.length < game.players.length) return;
 
   isProcessing = true;
-shuffledAnswerIds = shuffleArray(game.answers.map(a => a.id));
+  const shuffled = shuffleArray(
+  game.answers.map(a => a.id)
+);
   const { error } = await db
     .from("rooms")
-    .update({
-      state: "guessing",
-      current_answer_index: 0
-    })
+   .update({
+  state: "guessing",
+  current_answer_index: 0,
+  answer_order: JSON.stringify(shuffled)
+})
     .eq("code", game.roomCode);
 
   isProcessing = false;
