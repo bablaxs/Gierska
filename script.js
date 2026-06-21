@@ -1,4 +1,4 @@
-
+let isJoining = false;
 const SUPABASE_URL = "https://pjzsxrrzlrtkpfijojlc.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBqenN4cnJ6bHJ0a3BmaWpvamxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwMzI5MjAsImV4cCI6MjA5NzYwODkyMH0.OYQxb8Sli3-w2p5cy8aC7ZtM4E26RsmSxa3xrML24QA";
 
@@ -107,11 +107,14 @@ async function createRoom() {
 }
 
 async function joinRoom() {
+if (isJoining) return;
+isJoining = true;
   const nick = document.getElementById("nickInput").value.trim();
   const code = document.getElementById("codeInput").value.trim().toUpperCase();
 
   if (!nick || !code) {
     alert("Wpisz nick i kod pokoju.");
+    isJoining = false;
     return;
   }
 
@@ -123,9 +126,22 @@ async function joinRoom() {
 
   if (roomError || !room) {
     alert("Nie ma takiego pokoju.");
+    isJoining = false;
+
     return;
   }
+  const { data: existingPlayer } = await db
+  .from("players")
+  .select("*")
+  .eq("room_code", code)
+  .eq("name", nick)
+  .maybeSingle();
 
+if (existingPlayer) {
+  alert("Ten nick już jest w tym pokoju.");
+  isJoining = false;
+  return;
+}
   game.roomCode = code;
   isHost = false;
 
@@ -143,6 +159,7 @@ async function joinRoom() {
 
   if (playerError) {
     alert("Błąd dołączania: " + playerError.message);
+    isJoining = false;
     return;
   }
 
@@ -150,11 +167,14 @@ async function joinRoom() {
 
   document.getElementById("roomCode").textContent = code;
 
-  await loadPlayers();
-  listenPlayers();
+await loadPlayers();
+listenPlayers();
+await loadPlayers();
 
-  showScreen("lobby");
+showScreen("lobby");
+isJoining = false;
 }
+
 async function loadPlayers() {
   const { data, error } = await db
     .from("players")
@@ -164,6 +184,7 @@ async function loadPlayers() {
 
   if (error) {
     console.error(error);
+    isJoining = false;
     return;
   }
 
@@ -172,6 +193,8 @@ async function loadPlayers() {
 }
 
 function listenPlayers() {
+  db.removeAllChannels();
+
   db.channel("players-" + game.roomCode)
     .on(
       "postgres_changes",
@@ -181,11 +204,14 @@ function listenPlayers() {
         table: "players",
         filter: `room_code=eq.${game.roomCode}`
       },
-      async () => {
+      async (payload) => {
+        console.log("Zmiana players:", payload);
         await loadPlayers();
       }
     )
-    .subscribe();
+    .subscribe((status) => {
+      console.log("Realtime status:", status);
+    });
 }
 
 function renderPlayers() {
@@ -216,6 +242,7 @@ function copyCode() {
 function startGame() {
   if (game.players.length < 2) {
     alert("Dodaj minimum 2 graczy.");
+    isJoining = false;
     return;
   }
 
@@ -259,6 +286,7 @@ function submitAnswer() {
 
   if (!text) {
     alert("Napisz odpowiedź.");
+    isJoining = false;
     return;
   }
 
