@@ -1,4 +1,3 @@
-let isJoining = false;
 const SUPABASE_URL = "https://pjzsxrrzlrtkpfijojlc.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBqenN4cnJ6bHJ0a3BmaWpvamxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwMzI5MjAsImV4cCI6MjA5NzYwODkyMH0.OYQxb8Sli3-w2p5cy8aC7ZtM4E26RsmSxa3xrML24QA";
 
@@ -6,6 +5,9 @@ const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let myPlayerId = null;
 let isHost = false;
+let isJoining = false;
+let isProcessing = false;
+
 const screens = {
   start: document.getElementById("startScreen"),
   lobby: document.getElementById("lobbyScreen"),
@@ -31,54 +33,53 @@ const avatars = ["😈", "🟢", "🔵", "🟠", "🔴", "🟣", "🟡", "🧠"]
 
 let game = {
   roomCode: "",
+  roomState: "lobby",
   players: [],
+  answers: [],
+  guesses: [],
   round: 1,
   maxRounds: 5,
   currentQuestion: "",
-  answers: [],
-  currentAnswerIndex: 0,
-  currentPlayerAnswering: 0,
-  currentPlayerGuessing: 0,
-  guesses: []
+  currentAnswerIndex: 0
 };
 
 function showScreen(name) {
-  Object.values(screens).forEach(screen => screen.classList.remove("active"));
+  Object.values(screens).forEach(s => s.classList.remove("active"));
   screens[name].classList.add("active");
   updateHostControls();
+}
+
+function updateHostControls() {
+  const startBtn = document.getElementById("startGameBtn");
+  if (startBtn) startBtn.style.display = isHost ? "block" : "none";
+
+  const nextBtn = document.querySelector("#resultsScreen button.primary");
+  if (nextBtn) nextBtn.style.display = isHost ? "block" : "none";
 }
 
 function randomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "";
-  for (let i = 0; i < 5; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
+  for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
   return code;
 }
 
 async function createRoom() {
   const nick = document.getElementById("nickInput").value.trim();
-
-  if (!nick) {
-    alert("Wpisz nick.");
-    return;
-  }
+  if (!nick) return alert("Wpisz nick.");
 
   const code = randomCode();
   game.roomCode = code;
   isHost = true;
 
   const { error: roomError } = await db.from("rooms").insert({
-    code: code,
+    code,
     state: "lobby",
-    round: 1
+    round: 1,
+    current_answer_index: 0
   });
 
-  if (roomError) {
-    alert("Błąd tworzenia pokoju: " + roomError.message);
-    return;
-  }
+  if (roomError) return alert("Błąd tworzenia pokoju: " + roomError.message);
 
   const { data: player, error: playerError } = await db
     .from("players")
@@ -92,63 +93,49 @@ async function createRoom() {
     .select()
     .single();
 
-  if (playerError) {
-    alert("Błąd dodawania gracza: " + playerError.message);
-    return;
-  }
+  if (playerError) return alert("Błąd dodawania gracza: " + playerError.message);
 
   myPlayerId = player.id;
-
   document.getElementById("roomCode").textContent = code;
 
-await loadPlayers();
-listenPlayers();
-listenRoom();
-await loadPlayers();
-
-showScreen("lobby");
+  await loadPlayers();
+  showScreen("lobby");
 }
 
 async function joinRoom() {
-if (isJoining) return;
-isJoining = true;
+  if (isJoining) return;
+  isJoining = true;
+
   const nick = document.getElementById("nickInput").value.trim();
   const code = document.getElementById("codeInput").value.trim().toUpperCase();
 
   if (!nick || !code) {
-    alert("Wpisz nick i kod pokoju.");
     isJoining = false;
-    return;
+    return alert("Wpisz nick i kod pokoju.");
   }
 
-  const { data: room, error: roomError } = await db
-    .from("rooms")
+  const { data: room } = await db.from("rooms").select("*").eq("code", code).maybeSingle();
+  if (!room) {
+    isJoining = false;
+    return alert("Nie ma takiego pokoju.");
+  }
+
+  const { data: existingPlayer } = await db
+    .from("players")
     .select("*")
-    .eq("code", code)
+    .eq("room_code", code)
+    .eq("name", nick)
     .maybeSingle();
 
-  if (roomError || !room) {
-    alert("Nie ma takiego pokoju.");
+  if (existingPlayer) {
     isJoining = false;
-
-    return;
+    return alert("Ten nick już jest w tym pokoju.");
   }
-  const { data: existingPlayer } = await db
-  .from("players")
-  .select("*")
-  .eq("room_code", code)
-  .eq("name", nick)
-  .maybeSingle();
 
-if (existingPlayer) {
-  alert("Ten nick już jest w tym pokoju.");
-  isJoining = false;
-  return;
-}
   game.roomCode = code;
   isHost = false;
 
-  const { data: player, error: playerError } = await db
+  const { data: player, error } = await db
     .from("players")
     .insert({
       room_code: code,
@@ -160,122 +147,116 @@ if (existingPlayer) {
     .select()
     .single();
 
-  if (playerError) {
-    alert("Błąd dołączania: " + playerError.message);
+  if (error) {
     isJoining = false;
-    return;
+    return alert("Błąd dołączania: " + error.message);
   }
 
   myPlayerId = player.id;
-
   document.getElementById("roomCode").textContent = code;
 
-await loadPlayers();
-listenPlayers();
-listenRoom();
-await loadPlayers();
+  await loadPlayers();
+  await loadRoom();
 
-showScreen("lobby");
-isJoining = false;
+  showScreen("lobby");
+  isJoining = false;
 }
 
 async function loadPlayers() {
+  if (!game.roomCode) return;
+
   const { data, error } = await db
     .from("players")
     .select("*")
     .eq("room_code", game.roomCode)
     .order("created_at", { ascending: true });
 
-  if (error) {
-    console.error(error);
-    isJoining = false;
-    return;
+  if (error) return console.error(error);
+
+  game.players = data || [];
+  renderPlayers();
+}
+
+async function loadAnswers() {
+  const { data, error } = await db
+    .from("answers")
+    .select("*")
+    .eq("room_code", game.roomCode)
+    .order("created_at", { ascending: true });
+
+  if (error) return console.error(error);
+  game.answers = data || [];
+}
+
+async function loadGuesses() {
+  const { data, error } = await db
+    .from("guesses")
+    .select("*")
+    .eq("room_code", game.roomCode);
+
+  if (error) return console.error(error);
+  game.guesses = data || [];
+}
+
+async function loadRoom() {
+  if (!game.roomCode) return;
+
+  const { data: room, error } = await db
+    .from("rooms")
+    .select("*")
+    .eq("code", game.roomCode)
+    .maybeSingle();
+
+  if (error || !room) return;
+
+  game.roomState = room.state;
+  game.round = room.round || 1;
+  game.currentQuestion = room.current_question || "";
+  game.currentAnswerIndex = room.current_answer_index || 0;
+
+  if (room.state === "lobby") {
+    showScreen("lobby");
   }
 
-console.log("Pobrani gracze:", data);
-
-game.players = data || [];
-renderPlayers();
-}
-
-function listenPlayers() {
-  const channel = db.channel("players-" + game.roomCode);
-
-  channel
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "players"
-      },
-      async (payload) => {
-        if (payload.new?.room_code === game.roomCode || payload.old?.room_code === game.roomCode) {
-          await loadPlayers();
-        }
-      }
-    )
-    .subscribe((status) => {
-      console.log("Realtime players:", status);
-    });
-}
-function listenRoom() {
-  const channel = db.channel("room-" + game.roomCode);
-
-  channel
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "rooms"
-      },
-      async (payload) => {
-        if (payload.new?.code !== game.roomCode) return;
-
-        const room = payload.new;
-
-        game.round = room.round;
-        game.currentQuestion = room.current_question;
-
-        if (room.state === "answering") {
-          document.getElementById("roundInfo").textContent = `RUNDA ${game.round}/${game.maxRounds}`;
-          document.getElementById("questionText").textContent = game.currentQuestion;
-
-          showAnswerForMe();
-          showScreen("answer");
-        }
-      }
-    )
-    .subscribe((status) => {
-      console.log("Realtime room:", status);
-    });
-}
-function showAnswerForMe() {
-  const me = game.players.find(p => p.id === myPlayerId);
-
-  document.getElementById("currentAnswerPlayer").textContent = me ? me.name : "Ty";
-  document.getElementById("answerInput").value = "";
-  document.getElementById("charCount").textContent = "0/120";
-  document.getElementById("answeredCount").textContent = `0/${game.players.length} odpowiedziało`;
-}
-setInterval(async () => {
-  if (game.roomCode) {
-    console.log("Odświeżam graczy dla pokoju:", game.roomCode);
+  if (room.state === "answering") {
     await loadPlayers();
-  }
-}, 2000);
-function updateHostControls() {
-  const btn = document.getElementById("startGameBtn");
-  if (!btn) return;
+    await loadAnswers();
+    renderAnswerScreen();
 
-  btn.style.display = isHost ? "block" : "none";
+    if (isHost && game.answers.length >= game.players.length && game.players.length > 1) {
+      await goToGuessing();
+    }
+  }
+
+  if (room.state === "guessing") {
+    await loadPlayers();
+    await loadAnswers();
+    await loadGuesses();
+    renderGuessScreen();
+
+    if (isHost) await checkGuessesFinished();
+  }
+
+  if (room.state === "results") {
+    await loadPlayers();
+    await loadAnswers();
+    await loadGuesses();
+    renderResultsScreen();
+  }
+
+  if (room.state === "final") {
+    await loadPlayers();
+    renderFinalScreen();
+  }
 }
+
 function renderPlayers() {
   const list = document.getElementById("playersList");
-  list.innerHTML = "";
+  const count = document.getElementById("playersCount");
+  if (!list || !count) return;
 
-  document.getElementById("playersCount").textContent = `${game.players.length}/8`;
+  list.innerHTML = "";
+  count.textContent = `${game.players.length}/8`;
 
   game.players.forEach(player => {
     const div = document.createElement("div");
@@ -297,24 +278,20 @@ function copyCode() {
 }
 
 async function startGame() {
-  if (!isHost) {
-    alert("Tylko host może rozpocząć grę.");
-    return;
-  }
+  if (!isHost) return alert("Tylko host może rozpocząć grę.");
 
   await loadPlayers();
 
   if (game.players.length < 2) {
-    alert("Dodaj minimum 2 graczy.");
-    return;
+    return alert("Dodaj minimum 2 graczy.");
   }
+
+  await db.from("answers").delete().eq("room_code", game.roomCode);
+  await db.from("guesses").delete().eq("room_code", game.roomCode);
 
   const question = questions[Math.floor(Math.random() * questions.length)];
 
-  game.round = 1;
-  game.currentQuestion = question;
-
-  const { error } = await db
+  await db
     .from("rooms")
     .update({
       state: "answering",
@@ -324,163 +301,244 @@ async function startGame() {
     })
     .eq("code", game.roomCode);
 
-  if (error) {
-    alert("Błąd startu gry: " + error.message);
-    return;
-  }
-
-  showAnswerForMe();
-  showScreen("answer");
+  await loadRoom();
 }
 
-function updateAnswerScreen() {
-  const player = game.players[game.currentPlayerAnswering];
+function renderAnswerScreen() {
+  document.getElementById("roundInfo").textContent = `RUNDA ${game.round}/${game.maxRounds}`;
+  document.getElementById("questionText").textContent = game.currentQuestion;
 
-  document.getElementById("currentAnswerPlayer").textContent = player.name;
-  document.getElementById("answerInput").value = "";
-  document.getElementById("charCount").textContent = "0/120";
+  const me = game.players.find(p => p.id === myPlayerId);
+  document.getElementById("currentAnswerPlayer").textContent = me ? me.name : "Ty";
+
+  const input = document.getElementById("answerInput");
+  const btn = document.querySelector("#answerScreen button.primary");
+
+  const myAnswer = game.answers.find(a => a.player_id === myPlayerId);
+
   document.getElementById("answeredCount").textContent =
     `${game.answers.length}/${game.players.length} odpowiedziało`;
+
+  if (myAnswer) {
+    input.value = myAnswer.answer;
+    input.disabled = true;
+    btn.disabled = true;
+    btn.textContent = "ODPOWIEDŹ WYSŁANA ✅";
+  } else {
+    input.disabled = false;
+    btn.disabled = false;
+    btn.textContent = "WYŚLIJ ✈";
+  }
+
+  showScreen("answer");
 }
 
 document.getElementById("answerInput").addEventListener("input", function () {
   document.getElementById("charCount").textContent = `${this.value.length}/120`;
 });
 
-function submitAnswer() {
+async function submitAnswer() {
   const input = document.getElementById("answerInput");
   const text = input.value.trim();
 
-  if (!text) {
-    alert("Napisz odpowiedź.");
-    isJoining = false;
-    return;
-  }
+  if (!text) return alert("Napisz odpowiedź.");
 
-  const player = game.players[game.currentPlayerAnswering];
+  await loadAnswers();
 
-  game.answers.push({
-    id: Date.now() + Math.random(),
-    playerId: player.id,
-    playerName: player.name,
-    playerAvatar: player.avatar,
+  const already = game.answers.find(a => a.player_id === myPlayerId);
+  if (already) return alert("Już wysłałeś odpowiedź.");
+
+  const me = game.players.find(p => p.id === myPlayerId);
+
+  const { error } = await db.from("answers").insert({
+    room_code: game.roomCode,
+    player_id: myPlayerId,
+    player_name: me ? me.name : "Gracz",
     answer: text
   });
 
-  game.currentPlayerAnswering++;
+  if (error) return alert("Błąd wysyłania odpowiedzi: " + error.message);
 
-  if (game.currentPlayerAnswering >= game.players.length) {
-    shuffleAnswers();
-    startGuessing();
-  } else {
-    updateAnswerScreen();
-  }
+  await loadRoom();
 }
 
-function shuffleAnswers() {
-  game.answers.sort(() => Math.random() - 0.5);
+async function goToGuessing() {
+  if (isProcessing) return;
+  isProcessing = true;
+
+  await db
+    .from("rooms")
+    .update({
+      state: "guessing",
+      current_answer_index: 0
+    })
+    .eq("code", game.roomCode);
+
+  isProcessing = false;
 }
 
-function startGuessing() {
-  game.currentAnswerIndex = 0;
-  game.currentPlayerGuessing = 0;
-  game.guesses = [];
-  updateGuessScreen();
-  showScreen("guess");
-}
-
-function updateGuessScreen() {
+function renderGuessScreen() {
   const answer = game.answers[game.currentAnswerIndex];
-  const guesser = game.players[game.currentPlayerGuessing];
+  if (!answer) return;
 
   document.getElementById("guessRoundInfo").textContent = `RUNDA ${game.round}/${game.maxRounds}`;
   document.getElementById("guessQuestion").textContent = game.currentQuestion;
   document.getElementById("anonymousAnswer").textContent = `„${answer.answer}”`;
-  document.getElementById("currentGuessPlayer").textContent = guesser.name;
+
+  const me = game.players.find(p => p.id === myPlayerId);
+  document.getElementById("currentGuessPlayer").textContent = me ? me.name : "Ty";
 
   const buttons = document.getElementById("guessButtons");
   buttons.innerHTML = "";
 
+  const alreadyGuessed = game.guesses.find(
+    g => g.answer_id === answer.id && g.guesser_id === myPlayerId
+  );
+
   game.players.forEach(player => {
     const btn = document.createElement("button");
+    btn.innerHTML = `<span class="avatar">${player.avatar}</span>${player.name}`;
 
-    btn.innerHTML = `
-      <span class="avatar">${player.avatar}</span>
-      ${player.name}
-    `;
+    if (alreadyGuessed) {
+      btn.disabled = true;
+    } else {
+      btn.onclick = () => submitGuess(player.id);
+    }
 
-    btn.onclick = () => submitGuess(player.id);
     buttons.appendChild(btn);
   });
+
+  showScreen("guess");
 }
 
-function submitGuess(guessedPlayerId) {
+async function submitGuess(guessedPlayerId) {
   const answer = game.answers[game.currentAnswerIndex];
-  const guesser = game.players[game.currentPlayerGuessing];
+  if (!answer) return;
 
-  game.guesses.push({
-    answerId: answer.id,
-    realPlayerId: answer.playerId,
-    guesserId: guesser.id,
-    guessedPlayerId
+  await loadGuesses();
+
+  const already = game.guesses.find(
+    g => g.answer_id === answer.id && g.guesser_id === myPlayerId
+  );
+
+  if (already) return alert("Już głosowałeś.");
+
+  const { error } = await db.from("guesses").insert({
+    room_code: game.roomCode,
+    answer_id: answer.id,
+    guesser_id: myPlayerId,
+    guessed_player_id: guessedPlayerId
   });
 
-  game.currentPlayerGuessing++;
+  if (error) return alert("Błąd głosowania: " + error.message);
 
-  if (game.currentPlayerGuessing >= game.players.length) {
-    calculatePointsForAnswer();
-    showResults();
-  } else {
-    updateGuessScreen();
+  await loadRoom();
+}
+
+async function checkGuessesFinished() {
+  if (isProcessing) return;
+
+  const answer = game.answers[game.currentAnswerIndex];
+  if (!answer) return;
+
+  const guessesForAnswer = game.guesses.filter(g => g.answer_id === answer.id);
+
+  if (guessesForAnswer.length >= game.players.length) {
+    isProcessing = true;
+
+    await calculatePoints(answer, guessesForAnswer);
+
+    await db
+      .from("rooms")
+      .update({
+        state: "results"
+      })
+      .eq("code", game.roomCode);
+
+    isProcessing = false;
   }
 }
 
-function calculatePointsForAnswer() {
-  const answer = game.answers[game.currentAnswerIndex];
+async function calculatePoints(answer, guessesForAnswer) {
+  const scores = {};
 
-  game.guesses
-    .filter(g => g.answerId === answer.id)
-    .forEach(g => {
-      const guesser = game.players.find(p => p.id === g.guesserId);
-      const guessedPlayer = game.players.find(p => p.id === g.guessedPlayerId);
+  game.players.forEach(p => {
+    scores[p.id] = p.score || 0;
+  });
 
-      if (g.guessedPlayerId === answer.playerId && g.guesserId !== answer.playerId) {
-        guesser.score += 100;
-      }
+  let correctCount = 0;
 
-      if (g.guessedPlayerId !== answer.playerId && guessedPlayer.id !== answer.playerId) {
-        guessedPlayer.score += 30;
-      }
-    });
+  guessesForAnswer.forEach(g => {
+    const guessedPlayer = game.players.find(p => p.id === g.guessed_player_id);
+
+    if (g.guessed_player_id === answer.player_id && g.guesser_id !== answer.player_id) {
+      scores[g.guesser_id] += 100;
+      correctCount++;
+    }
+
+    if (g.guessed_player_id !== answer.player_id && guessedPlayer) {
+      scores[guessedPlayer.id] += 30;
+    }
+  });
+
+  if (correctCount === 0) {
+    scores[answer.player_id] += 50;
+  }
+
+  for (const playerId of Object.keys(scores)) {
+    await db
+      .from("players")
+      .update({ score: scores[playerId] })
+      .eq("id", playerId);
+  }
 }
 
-function showResults() {
+function renderResultsScreen() {
   const answer = game.answers[game.currentAnswerIndex];
-  const author = game.players.find(p => p.id === answer.playerId);
+  if (!answer) return;
+
+  const author = game.players.find(p => p.id === answer.player_id);
 
   document.getElementById("realAuthor").innerHTML =
-    `${author.avatar} ${author.name}`;
+    author ? `${author.avatar} ${author.name}` : "Nieznany";
 
   const correctBox = document.getElementById("correctGuessers");
   correctBox.innerHTML = "";
 
   const correct = game.guesses.filter(g =>
-    g.answerId === answer.id &&
-    g.guessedPlayerId === answer.playerId &&
-    g.guesserId !== answer.playerId
+    g.answer_id === answer.id &&
+    g.guessed_player_id === answer.player_id &&
+    g.guesser_id !== answer.player_id
   );
 
   if (correct.length === 0) {
     correctBox.innerHTML = `<p>Nikt nie zgadł 😈</p>`;
-    author.score += 50;
   } else {
     correct.forEach(g => {
-      const player = game.players.find(p => p.id === g.guesserId);
-      correctBox.innerHTML += `<p>${player.avatar} ${player.name}</p>`;
+      const player = game.players.find(p => p.id === g.guesser_id);
+      if (player) correctBox.innerHTML += `<p>${player.avatar} ${player.name}</p>`;
     });
   }
 
   renderScoreboard();
+
+  const nextBtn = document.querySelector("#resultsScreen button.primary");
+  if (nextBtn) nextBtn.textContent = "DALEJ ➜";
+
+  showScreen("results");
+}
+
+function renderFinalScreen() {
+  document.getElementById("realAuthor").innerHTML = "Koniec gry 🏆";
+
+  const correctBox = document.getElementById("correctGuessers");
+  correctBox.innerHTML = "<p>Zwycięzca jest na górze tabeli.</p>";
+
+  renderScoreboard();
+
+  const nextBtn = document.querySelector("#resultsScreen button.primary");
+  if (nextBtn) nextBtn.style.display = "none";
+
   showScreen("results");
 }
 
@@ -488,7 +546,7 @@ function renderScoreboard() {
   const table = document.getElementById("scoreTable");
   table.innerHTML = "";
 
-  const sorted = [...game.players].sort((a, b) => b.score - a.score);
+  const sorted = [...game.players].sort((a, b) => (b.score || 0) - (a.score || 0));
 
   sorted.forEach((player, index) => {
     const row = document.createElement("div");
@@ -496,31 +554,64 @@ function renderScoreboard() {
 
     row.innerHTML = `
       <span>${index + 1}. ${player.avatar} <b>${player.name}</b></span>
-      <span>${player.score} pkt</span>
+      <span>${player.score || 0} pkt</span>
     `;
 
     table.appendChild(row);
   });
 }
 
-function nextGuessOrRound() {
-  game.currentAnswerIndex++;
+async function nextGuessOrRound() {
+  if (!isHost) return alert("Tylko host może przejść dalej.");
 
-  if (game.currentAnswerIndex < game.answers.length) {
-    game.currentPlayerGuessing = 0;
-    game.guesses = [];
-    updateGuessScreen();
-    showScreen("guess");
+  await loadPlayers();
+  await loadAnswers();
+  await loadGuesses();
+
+  const nextIndex = game.currentAnswerIndex + 1;
+
+  if (nextIndex < game.answers.length) {
+    await db
+      .from("rooms")
+      .update({
+        state: "guessing",
+        current_answer_index: nextIndex
+      })
+      .eq("code", game.roomCode);
+
     return;
   }
 
-  game.round++;
+  if (game.round >= game.maxRounds) {
+    await db
+      .from("rooms")
+      .update({
+        state: "final"
+      })
+      .eq("code", game.roomCode);
 
-  if (game.round > game.maxRounds) {
-    alert("Koniec gry! Zwycięzca jest na górze tabeli.");
-    showScreen("lobby");
     return;
   }
 
-  startRound();
+  await db.from("answers").delete().eq("room_code", game.roomCode);
+  await db.from("guesses").delete().eq("room_code", game.roomCode);
+
+  const question = questions[Math.floor(Math.random() * questions.length)];
+
+  await db
+    .from("rooms")
+    .update({
+      state: "answering",
+      current_question: question,
+      round: game.round + 1,
+      current_answer_index: 0
+    })
+    .eq("code", game.roomCode);
 }
+
+setInterval(async () => {
+  if (!game.roomCode) return;
+
+  await loadPlayers();
+  await loadRoom();
+}, 1200);
