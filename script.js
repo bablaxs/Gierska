@@ -421,8 +421,7 @@ function renderGuessScreen() {
   document.getElementById("anonymousAnswer").textContent = `„${answer.answer}”`;
 
   const me = game.players.find(p => p.id === myPlayerId);
-  document.getElementById("currentGuessPlayer").textContent = me ? me.name : "Ty";
-
+const voteStatus = document.getElementById("voteStatus");
   const buttons = document.getElementById("guessButtons");
   buttons.innerHTML = "";
 
@@ -434,11 +433,21 @@ function renderGuessScreen() {
     const btn = document.createElement("button");
     btn.innerHTML = `<span class="avatar">${player.avatar || "🙂"}</span>${player.name}`;
 
-    if (alreadyGuessed) {
-      btn.disabled = true;
-    } else {
-      btn.onclick = () => submitGuess(player.id);
-    }
+if (alreadyGuessed) {
+  btn.disabled = true;
+
+  if (voteStatus) {
+    voteStatus.textContent = "Zagłosowano ✅ Czekamy na resztę...";
+    voteStatus.classList.add("voted");
+  }
+} else {
+  if (voteStatus) {
+    voteStatus.textContent = "Wybierz autora odpowiedzi";
+    voteStatus.classList.remove("voted");
+  }
+
+  btn.onclick = () => submitGuess(player.id);
+}
 
     buttons.appendChild(btn);
   });
@@ -466,6 +475,16 @@ async function submitGuess(guessedPlayerId) {
   });
 
   if (error) return alert("Błąd głosowania: " + error.message);
+
+  const voteStatus = document.getElementById("voteStatus");
+  if (voteStatus) {
+    voteStatus.textContent = "Zagłosowano ✅ Czekamy na resztę...";
+    voteStatus.classList.add("voted");
+  }
+
+  document.querySelectorAll("#guessButtons button").forEach(btn => {
+    btn.disabled = true;
+  });
 
   await loadAll();
 }
@@ -552,7 +571,8 @@ function renderResultsScreen() {
     });
   }
 
-  renderScoreboard();
+  const scoreTable = document.getElementById("scoreTable");
+scoreTable.innerHTML = "<p>Ranking pojawi się na końcu gry 🏁</p>";
 
   const nextBtn = document.querySelector("#resultsScreen button.primary");
   if (nextBtn) {
@@ -569,7 +589,7 @@ function renderFinalScreen() {
   const correctBox = document.getElementById("correctGuessers");
   correctBox.innerHTML = "<p>Zwycięzca jest na górze tabeli.</p>";
 
-  renderScoreboard();
+ renderScoreboard();
 
   const nextBtn = document.querySelector("#resultsScreen button.primary");
   if (nextBtn) nextBtn.style.display = "none";
