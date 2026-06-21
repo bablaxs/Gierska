@@ -212,6 +212,12 @@ function getVisibleStateKey() {
   ].join("|");
 }
 async function leaveRoom() {
+  if (isHost) {
+  await db.from("guesses").delete().eq("room_code", game.roomCode);
+  await db.from("answers").delete().eq("room_code", game.roomCode);
+  await db.from("players").delete().eq("room_code", game.roomCode);
+  await db.from("rooms").delete().eq("code", game.roomCode);
+}
   if (!myPlayerId) {
     showScreen("start");
     return;
