@@ -103,6 +103,7 @@ async function createRoom() {
 
 await loadPlayers();
 listenPlayers();
+listenRoom();
 await loadPlayers();
 
 showScreen("lobby");
@@ -171,6 +172,7 @@ if (existingPlayer) {
 
 await loadPlayers();
 listenPlayers();
+listenRoom();
 await loadPlayers();
 
 showScreen("lobby");
@@ -197,8 +199,6 @@ renderPlayers();
 }
 
 function listenPlayers() {
-  db.removeAllChannels();
-
   const channel = db.channel("players-" + game.roomCode);
 
   channel
@@ -218,6 +218,46 @@ function listenPlayers() {
     .subscribe((status) => {
       console.log("Realtime players:", status);
     });
+}
+function listenRoom() {
+  const channel = db.channel("room-" + game.roomCode);
+
+  channel
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "rooms"
+      },
+      async (payload) => {
+        if (payload.new?.code !== game.roomCode) return;
+
+        const room = payload.new;
+
+        game.round = room.round;
+        game.currentQuestion = room.current_question;
+
+        if (room.state === "answering") {
+          document.getElementById("roundInfo").textContent = `RUNDA ${game.round}/${game.maxRounds}`;
+          document.getElementById("questionText").textContent = game.currentQuestion;
+
+          showAnswerForMe();
+          showScreen("answer");
+        }
+      }
+    )
+    .subscribe((status) => {
+      console.log("Realtime room:", status);
+    });
+}
+function showAnswerForMe() {
+  const me = game.players.find(p => p.id === myPlayerId);
+
+  document.getElementById("currentAnswerPlayer").textContent = me ? me.name : "Ty";
+  document.getElementById("answerInput").value = "";
+  document.getElementById("charCount").textContent = "0/120";
+  document.getElementById("answeredCount").textContent = `0/${game.players.length} odpowiedziało`;
 }
 setInterval(async () => {
   if (game.roomCode) {
@@ -256,34 +296,40 @@ function copyCode() {
   alert("Skopiowano kod pokoju: " + game.roomCode);
 }
 
-function startGame() {
-    if (!isHost) {
-  alert("Tylko host może rozpocząć grę.");
-  return;
-}
-  if (game.players.length < 2) {
-    alert("Dodaj minimum 2 graczy.");
-    isJoining = false;
+async function startGame() {
+  if (!isHost) {
+    alert("Tylko host może rozpocząć grę.");
     return;
   }
 
+  await loadPlayers();
+
+  if (game.players.length < 2) {
+    alert("Dodaj minimum 2 graczy.");
+    return;
+  }
+
+  const question = questions[Math.floor(Math.random() * questions.length)];
+
   game.round = 1;
-  game.players.forEach(p => p.score = 0);
-  startRound();
-}
+  game.currentQuestion = question;
 
-function startRound() {
-  game.currentQuestion = questions[Math.floor(Math.random() * questions.length)];
-  game.answers = [];
-  game.guesses = [];
-  game.currentPlayerAnswering = 0;
-  game.currentAnswerIndex = 0;
-  game.currentPlayerGuessing = 0;
+  const { error } = await db
+    .from("rooms")
+    .update({
+      state: "answering",
+      current_question: question,
+      round: 1,
+      current_answer_index: 0
+    })
+    .eq("code", game.roomCode);
 
-  document.getElementById("roundInfo").textContent = `RUNDA ${game.round}/${game.maxRounds}`;
-  document.getElementById("questionText").textContent = game.currentQuestion;
+  if (error) {
+    alert("Błąd startu gry: " + error.message);
+    return;
+  }
 
-  updateAnswerScreen();
+  showAnswerForMe();
   showScreen("answer");
 }
 
