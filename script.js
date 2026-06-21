@@ -104,7 +104,7 @@ const questions = [
 " Co byś zrobił, gdybyś wiedział, że masz tylko 24h życia i nikt nie mógłby Cię powstrzymać? ",
 " Najbardziej żenująca rzecz, jaką powiedziałeś komuś bliskiemu i potem żałowałeś przez lata ",
 " Gdybyś miał codziennie jeść jedno danie zrobione z części ciała kogoś z tego czatu – co byś wybrał? ",
-" Jaka jest najdziwniejsza rzecz, którą kolekcjonujesz albo ukrywasz w swoim pokoju? "
+" Jaka jest najdziwniejsza rzecz, którą kolekcjonujesz albo ukrywasz w swoim pokoju? ",
 " Wolałbyś codziennie srać w spodnie i chodzić tak cały dzień, czy codziennie wymiotować na siebie po śniadaniu? ",
 " Wolałbyś jeść własne sranie przez miesiąc, czy pić własny mocz przez rok? ",
 " Wolałbyś obudzić się w ciele najgrubszego i najśmierdzącego człowieka w tym czacie na zawsze, czy w ciele swojej mamy na rok? ",
@@ -124,7 +124,7 @@ const questions = [
 " Wolałbyś jeść własne strupy i gluty, czy wąchać buty wszystkich osób z tego czatu codziennie? ",
 " Wolałbyś mieć ręce zawsze lepkie od czyjegoś smarku, czy stopy zawsze mokre od czyjegoś potu? ",
 " Wolałbyś codziennie pić sok z kiszonych ogórków zmieszany z czyimś potem, czy jeść chleb obtoczony w czyichś włosach? ",
-" Wolałbyś zamienić się miejscami z najbrudniejszą i najśmierdząjącą osobą w tym czacie na rok, czy zjeść talerz robaków na żywca? "
+" Wolałbyś zamienić się miejscami z najbrudniejszą i najśmierdząjącą osobą w tym czacie na rok, czy zjeść talerz robaków na żywca? ",
 " Wolałbyś codziennie srać sobie do butów i chodzić w tym cały dzień, czy codziennie wycierać sobie twarz używaną toaletą? ",
 " Wolałbyś jeść własne gluty i strupy przez miesiąc, czy pić wodę z muszli klozetowej po imprezie przez tydzień? ",
 " Wolałbyś obudzić się w ciele swojej babci na miesiąc, czy w ciele najśmierdzącego typa z tego czatu na rok? ",
