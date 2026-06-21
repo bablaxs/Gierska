@@ -349,3 +349,28 @@ button:hover {
     padding: 25px;
   }
 }
+.voted {
+  color: #7dffb2;
+  font-weight: 900;
+  animation: popVote 0.35s ease;
+}
+
+@keyframes popVote {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.4;
+  }
+  70% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.guess-grid button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
