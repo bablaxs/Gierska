@@ -506,3 +506,18 @@ button:active {
     font-size: 28px;
   }
 }
+.kick-btn{
+  margin-left:auto;
+  width:32px;
+  height:32px;
+  border:none;
+  border-radius:10px;
+  background:#ff4d4d;
+  color:white;
+  cursor:pointer;
+  transition:.2s;
+}
+
+.kick-btn:hover{
+  transform:scale(1.1);
+}
