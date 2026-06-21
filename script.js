@@ -854,6 +854,19 @@ async function nextGuessOrRound() {
 }
 
 setInterval(async () => {
+  if (myPlayerId) {
+  const me = game.players.find(p => p.id === myPlayerId);
+
+  if (!me) {
+    alert("Host usunął Cię z pokoju.");
+
+    myPlayerId = null;
+    game.roomCode = "";
+
+    showScreen("start");
+    return;
+  }
+}
   if (!game.roomCode) return;
 
   await loadPlayers();
