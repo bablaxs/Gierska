@@ -371,8 +371,16 @@ function renderPlayers() {
 }
 
 function copyCode() {
-  navigator.clipboard.writeText(game.roomCode);
-  alert("Skopiowano kod pokoju: " + game.roomCode);
+  const link = window.location.href.split("?")[0];
+
+  const text = `Zagraj ze mną w "Kto to napisał?" 🎮
+
+Link: ${link}
+Kod pokoju: ${game.roomCode}`;
+
+  navigator.clipboard.writeText(text);
+
+  alert("Skopiowano zaproszenie z linkiem i kodem pokoju ✅");
 }
 
 async function startGame() {
