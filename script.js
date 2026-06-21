@@ -298,6 +298,12 @@ async function createRoom() {
 }
 
 async function joinRoom() {
+  const music = document.getElementById("bgMusic");
+
+if (music.paused) {
+  music.volume = 0.15;
+  music.play().catch(() => {});
+}
   if (isJoining) return;
   isJoining = true;
 
