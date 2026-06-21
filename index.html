@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Intentownia</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="script.js"></script>
+<body>
+
+<div class="bg"></div>
+
+<main class="app">
+
+  <!-- START -->
+  <section class="screen active" id="startScreen">
+    <div class="card start-card">
+      <div class="step">1</div>
+      <h4>START</h4>
+
+      <div class="logo">
+        <div class="bubble">•••</div>
+      </div>
+
+      <h1>INTENTOWNIA</h1>
+      <p class="subtitle">Zgadnij, co inni mają na myśli!</p>
+
+      <label>TWÓJ NICK</label>
+      <input id="nickInput" placeholder="Wpisz swój nick..." maxlength="16">
+
+      <button class="primary" onclick="createRoom()">＋ STWÓRZ POKÓJ</button>
+
+      <div class="join-box">
+        <input id="codeInput" placeholder="Wpisz kod pokoju...">
+        <button onclick="joinRoom()">➜</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOBBY -->
+  <section class="screen" id="lobbyScreen">
+    <div class="card">
+      <div class="step">2</div>
+      <h4>LOBBY</h4>
+
+      <p class="small">KOD POKOJU</p>
+      <h2 id="roomCode">X7A3B</h2>
+
+      <button class="copy" onclick="copyCode()">⧉ KOPIUJ KOD</button>
+
+      <div class="row-between">
+        <label>GRACZE</label>
+        <span id="playersCount">0/8</span>
+      </div>
+
+      <div id="playersList" class="players"></div>
+
+      <div class="add-player">
+        <input id="friendNickInput" placeholder="Dodaj kolegę testowo...">
+        <button onclick="addTestPlayer()">＋</button>
+      </div>
+
+      <p class="hint">Na razie wersja lokalna — dodajesz graczy testowo.</p>
+      <button class="primary" onclick="startGame()">▷ START GRY</button>
+    </div>
+  </section>
+
+  <!-- ODPOWIEDŹ -->
+  <section class="screen" id="answerScreen">
+    <div class="card big-card">
+      <div class="step">3</div>
+      <h4>PISANIE ODPOWIEDZI</h4>
+
+      <p class="round" id="roundInfo">RUNDA 1/5</p>
+
+      <div class="question-box">
+        <p>PYTANIE</p>
+        <h3 id="questionText"></h3>
+      </div>
+
+      <div class="current-player">
+        Teraz odpowiada: <b id="currentAnswerPlayer"></b>
+      </div>
+
+      <textarea id="answerInput" placeholder="Napisz swoją odpowiedź..." maxlength="120"></textarea>
+
+      <div class="row-between">
+        <span id="charCount">0/120</span>
+        <span id="answeredCount">0/0 odpowiedziało</span>
+      </div>
+
+      <button class="primary" onclick="submitAnswer()">WYŚLIJ ✈</button>
+    </div>
+  </section>
+
+  <!-- ZGADYWANIE -->
+  <section class="screen" id="guessScreen">
+    <div class="card big-card">
+      <div class="step">4</div>
+      <h4>ZGADYWANIE</h4>
+
+      <p class="round" id="guessRoundInfo">RUNDA 1/5</p>
+
+      <div class="question-box">
+        <p>PYTANIE</p>
+        <h3 id="guessQuestion"></h3>
+      </div>
+
+      <p class="small center">ODPOWIEDŹ ANONIMOWA</p>
+      <h1 class="anonymous" id="anonymousAnswer"></h1>
+
+      <div class="current-player">
+        Zgaduje: <b id="currentGuessPlayer"></b>
+      </div>
+
+      <p class="small center">KTO JEST AUTOREM?</p>
+      <div id="guessButtons" class="guess-grid"></div>
+    </div>
+  </section>
+
+  <!-- WYNIKI -->
+  <section class="screen" id="resultsScreen">
+    <div class="card big-card">
+      <div class="step">5</div>
+      <h4>WYNIKI</h4>
+
+      <div class="results-layout">
+        <div>
+          <div class="mini-card">
+            <p>AUTOR ODPOWIEDZI</p>
+            <h3 id="realAuthor"></h3>
+          </div>
+
+          <div class="mini-card">
+            <p>KTO ZGADŁ?</p>
+            <div id="correctGuessers"></div>
+          </div>
+        </div>
+
+        <div class="scoreboard">
+          <p>TABELA PUNKTÓW</p>
+          <div id="scoreTable"></div>
+        </div>
+      </div>
+
+      <button class="primary wide" onclick="nextGuessOrRound()">NASTĘPNA RUNDA ➜</button>
+    </div>
+  </section>
+
+</main>
+
+<script src="script.js"></script>
+</body>
+</html>
