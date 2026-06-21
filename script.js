@@ -8,6 +8,7 @@ let isHost = false;
 let isJoining = false;
 let isProcessing = false;
 let lastStateKey = "";
+let shuffledAnswerIds = [];
 
 const screens = {
   start: document.getElementById("startScreen"),
@@ -197,6 +198,9 @@ function getRandomQuestion() {
   usedQuestions.push(question);
   return question;
 }
+function shuffleArray(array) {
+  return [...array].sort(() => Math.random() - 0.5);
+}
 function getVisibleStateKey() {
   return [
     game.roomState,
@@ -381,19 +385,6 @@ async function loadRoomOnly() {
   game.currentAnswerIndex = room.current_answer_index || 0;
 }
 
-async function loadAnswers() {
-  if (!game.roomCode) return;
-
-  const { data, error } = await db
-    .from("answers")
-    .select("*")
-    .eq("room_code", game.roomCode)
-    .order("created_at", { ascending: true });
-
-  if (error) return console.error(error);
-
-  game.answers = (data || []).sort(() => Math.random() - 0.5);
-}
 
 async function loadAnswers() {
   if (!game.roomCode) return;
@@ -538,11 +529,11 @@ function renderAnswerScreen() {
     `${game.answers.length}/${game.players.length} odpowiedziało`;
 
   if (myAnswer) {
-    input.value = myAnswer.answer;
-    input.disabled = true;
-    btn.disabled = true;
-    btn.textContent = "ODPOWIEDŹ WYSŁANA ✅";
-  } else {
+  input.value = myAnswer.answer;
+  input.disabled = false;
+  btn.disabled = false;
+  btn.textContent = "ZAPISZ ZMIANY ✏️";
+} else {
     input.disabled = false;
     btn.disabled = false;
     btn.textContent = "WYŚLIJ ✈";
@@ -562,8 +553,24 @@ async function submitAnswer() {
 
   await loadAnswers();
 
-  const already = game.answers.find(a => a.player_id === myPlayerId);
-  if (already) return alert("Już wysłałeś odpowiedź.");
+ const already = game.answers.find(a => a.player_id === myPlayerId);
+
+if (already) {
+  const { error } = await db
+    .from("answers")
+    .update({
+      answer: text
+    })
+    .eq("id", already.id);
+
+  if (error) {
+    alert("Błąd edycji odpowiedzi.");
+    return;
+  }
+
+  await loadAll();
+  return;
+}
 
   const me = game.players.find(p => p.id === myPlayerId);
 
@@ -588,7 +595,7 @@ async function hostCheckAnswering() {
   if (game.answers.length < game.players.length) return;
 
   isProcessing = true;
-
+shuffledAnswerIds = shuffleArray(game.answers.map(a => a.id));
   const { error } = await db
     .from("rooms")
     .update({
@@ -603,7 +610,11 @@ async function hostCheckAnswering() {
 }
 
 function renderGuessScreen() {
-  const answer = game.answers[game.currentAnswerIndex];
+  const orderedAnswers = shuffledAnswerIds.length
+  ? shuffledAnswerIds.map(id => game.answers.find(a => a.id === id)).filter(Boolean)
+  : game.answers;
+
+const answer = orderedAnswers[game.currentAnswerIndex];
   if (!answer) return;
 
   document.getElementById("guessRoundInfo").textContent = `RUNDA ${game.round}/${game.maxRounds}`;
@@ -853,25 +864,42 @@ async function nextGuessOrRound() {
 }
 
 setInterval(async () => {
-  if (myPlayerId) {
-  const me = game.players.find(p => p.id === myPlayerId);
-
-  if (!me) {
-    alert("Host usunął Cię z pokoju.");
-
-    myPlayerId = null;
-    game.roomCode = "";
-
-    showScreen("start");
-    return;
-  }
-}
   if (!game.roomCode) return;
 
   await loadPlayers();
   await loadAnswers();
   await loadGuesses();
   await loadRoomOnly();
+
+  if (myPlayerId) {
+    const me = game.players.find(p => p.id === myPlayerId);
+
+    if (!me) {
+      alert("Host usunął Cię z pokoju.");
+
+      myPlayerId = null;
+      isHost = false;
+      isJoining = false;
+      isProcessing = false;
+      lastStateKey = "";
+
+      game = {
+        roomCode: "",
+        roomState: "lobby",
+        players: [],
+        answers: [],
+        guesses: [],
+        round: 1,
+        maxRounds: 5,
+        currentQuestion: "",
+        currentAnswerIndex: 0
+      };
+
+      document.getElementById("codeInput").value = "";
+      showScreen("start");
+      return;
+    }
+  }
 
   const key = getVisibleStateKey();
   if (key !== lastStateKey) {
