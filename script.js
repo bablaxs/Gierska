@@ -260,6 +260,12 @@ async function kickPlayer(playerId) {
   await loadPlayers();
 }
 async function createRoom() {
+  const music = document.getElementById("bgMusic");
+
+if (music.paused) {
+  music.volume = 0.1;
+  music.play();
+}
   const nick = document.getElementById("nickInput").value.trim();
   if (!nick) return alert("Wpisz nick.");
 
