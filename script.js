@@ -243,6 +243,14 @@ async function leaveRoom() {
   document.getElementById("codeInput").value = "";
   showScreen("start");
 }
+function playClick() {
+  const sound = document.getElementById("clickSound");
+
+  if (!sound) return;
+
+  sound.currentTime = 0;
+  sound.play().catch(() => {});
+}
 async function kickPlayer(playerId) {
   if (!isHost) return;
 
@@ -942,3 +950,8 @@ setInterval(async () => {
   await hostCheckAnswering();
   await hostCheckGuessing();
 }, 1000);
+document.addEventListener("click", (e) => {
+  if (e.target.closest("button")) {
+    playClick();
+  }
+});
